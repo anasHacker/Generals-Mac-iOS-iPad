@@ -1,81 +1,39 @@
 name: Build iOS IPA
-on: [push, workflow_dispatch]
 
-env:
-  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-  VULKAN_SDK: /Users/runner/GeneralsX/MoltenVK/MoltenVK/MoltenVK
+on:
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: macos-latest
+  build-ios:
+    runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Cache vcpkg
-        uses: actions/cache@v4
-        with:
-          path: /Users/runner/.cache/vcpkg
-          key: vcpkg-ios-${{ hashFiles('vcpkg.json') }}
-
-      - name: Install Dependencies
+      - name: Set up Toolchain
         run: |
-          brew install cmake xcodegen ninja meson vulkan-headers spirv-headers glslang
-          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
-          "$VCPKG_ROOT/bootstrap-vcpkg.sh"
+          brew install cmake ninja meson pkgconf xcodegen
 
-      - name: Build Project
+      - name: Fetch MoltenVK & Setup iOS SDK
         run: |
-          ln -sfn "$GITHUB_WORKSPACE" /Users/runner/GeneralsX
-          git submodule update --init --recursive
+          git submodule update --init references/fbraz3-dxvk
           ./scripts/build/ios/fetch-moltenvk.sh
           ./scripts/build/ios/stage-fonts.sh
 
-          # 1. نسخ جميع ملفات الترويسة (Vulkan + SPIRV) إلى مسار VULKAN_SDK
-          mkdir -p "$VULKAN_SDK/include"
-          mkdir -p "$VULKAN_SDK/lib/MoltenVK.xcframework/ios-arm64"
-          cp -rn /opt/homebrew/include/* "$VULKAN_SDK/include/" || true
-
-          # 2. تجهيز مكتبات MoltenVK الثابتة والديناميكية لنظام iOS
-          MVK_A=$(find /Users/runner/GeneralsX/MoltenVK -name "libMoltenVK.a" | grep "ios-arm64" | grep -v "simulator" | head -n 1)
-          if [ -z "$MVK_A" ]; then
-            MVK_A=$(find /Users/runner/GeneralsX/MoltenVK -name "libMoltenVK.a" | head -n 1)
-          fi
-          cp -f "$MVK_A" "$VULKAN_SDK/lib/MoltenVK.xcframework/ios-arm64/libMoltenVK.a"
-          cp -f "$MVK_A" "$VULKAN_SDK/lib/libMoltenVK.a"
-
-          MVK_DYLIB=$(find /Users/runner/GeneralsX/MoltenVK -path "*ios-arm64/MoltenVK.framework/MoltenVK" | head -n 1)
-          if [ -n "$MVK_DYLIB" ]; then
-            cp -f "$MVK_DYLIB" "$VULKAN_SDK/lib/libMoltenVK.dylib"
-            cp -f "$MVK_DYLIB" "$VULKAN_SDK/lib/libvulkan.dylib"
-          fi
-
-          # 3. تشغيل إعداد CMake الأولي
+      - name: Build Generals for iOS
+        run: |
           cmake --preset ios-vulkan
-
-          # 4. حقن مسارات Vulkan و SPIR-V مباشرة داخل ملف cross-file الخاص بـ Meson
-          CROSS_FILE="build/ios-vulkan/meson-arm64-ios-cross.ini"
-          if [ -f "$CROSS_FILE" ]; then
-            sed -i '' "s|'-arch', 'arm64'|'-arch', 'arm64', '-I$VULKAN_SDK/include', '-I/opt/homebrew/include'|g" "$CROSS_FILE"
-          fi
-
-          # 5. بناء اللعبة بالكامل
           cmake --build build/ios-vulkan --target z_generals
 
       - name: Package IPA
         run: |
-          GX_TEAM_ID="-" GX_BUNDLE_ID=com.github.generalszh ./scripts/build/ios/package-ios-zh.sh || true
-          mkdir -p Payload
-          APP_PATH=$(find build/ios-vulkan -name "GeneralsXZH.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find . -name "*.app" -type d | head -n 1)
-          fi
-          cp -r "$APP_PATH" Payload/
-          zip -r Generals.ipa Payload
-
-      - name: Upload IPA
+          GX_TEAM_ID="DEVELOPER_TEAM" GX_BUNDLE_ID="com.generals.ios" \
+          ./scripts/build/ios/package-ios-zh.sh
+          
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Generals-IPA
-          path: Generals.ipa
+          path: build/ios-vulkan/**/*.ipa
