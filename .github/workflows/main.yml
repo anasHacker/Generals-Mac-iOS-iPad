@@ -1,5 +1,9 @@
 name: Build iOS IPA
 on: [push, workflow_dispatch]
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+
 jobs:
   build:
     runs-on: macos-latest
@@ -9,7 +13,10 @@ jobs:
           submodules: true
 
       - name: Install Dependencies
-        run: brew install cmake xcodegen
+        run: |
+          brew install cmake xcodegen ninja
+          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh"
 
       - name: Build Project
         run: |
