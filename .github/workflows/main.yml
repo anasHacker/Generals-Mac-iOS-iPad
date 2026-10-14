@@ -24,6 +24,10 @@ jobs:
           git submodule update --init references/fbraz3-dxvk
           ./scripts/build/ios/fetch-moltenvk.sh
           ./scripts/build/ios/stage-fonts.sh
+          
+          mkdir -p /Users/runner/GeneralsX/MoltenVK/MoltenVK/MoltenVK/lib/MoltenVK.xcframework/ios-arm64
+          find /Users/runner/GeneralsX/MoltenVK -name "libMoltenVK.a" -exec cp {} /Users/runner/GeneralsX/MoltenVK/MoltenVK/MoltenVK/lib/MoltenVK.xcframework/ios-arm64/ \;
+          
           cmake --preset ios-vulkan
           cmake --build build/ios-vulkan --target z_generals
 
