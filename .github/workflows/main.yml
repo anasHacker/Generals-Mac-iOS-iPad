@@ -14,7 +14,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install cmake xcodegen ninja
+          brew install cmake xcodegen ninja meson
           git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
           "$VCPKG_ROOT/bootstrap-vcpkg.sh"
 
