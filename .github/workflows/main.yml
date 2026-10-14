@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive
 
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -21,26 +21,23 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install cmake xcodegen ninja meson vulkan-headers
+          brew install cmake xcodegen ninja meson vulkan-headers spirv-headers glslang
           git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
           "$VCPKG_ROOT/bootstrap-vcpkg.sh"
 
       - name: Build Project
         run: |
           ln -sfn "$GITHUB_WORKSPACE" /Users/runner/GeneralsX
-          git submodule update --init references/fbraz3-dxvk
+          git submodule update --init --recursive
           ./scripts/build/ios/fetch-moltenvk.sh
           ./scripts/build/ios/stage-fonts.sh
 
-          # 1. تجهيز مسارات Vulkan SDK وإضافة ملفات vulkan.h المفقودة
+          # 1. نسخ جميع ملفات الترويسة (Vulkan + SPIRV) إلى مسار VULKAN_SDK
           mkdir -p "$VULKAN_SDK/include"
           mkdir -p "$VULKAN_SDK/lib/MoltenVK.xcframework/ios-arm64"
-          cp -r /opt/homebrew/include/vulkan "$VULKAN_SDK/include/"
-          if [ -d /opt/homebrew/include/vk_video ]; then
-            cp -r /opt/homebrew/include/vk_video "$VULKAN_SDK/include/"
-          fi
+          cp -rn /opt/homebrew/include/* "$VULKAN_SDK/include/" || true
 
-          # 2. وضع مكتبات MoltenVK الخاصة بـ iOS في المسارات المطلوبة لـ Ninja و Meson
+          # 2. تجهيز مكتبات MoltenVK الثابتة والديناميكية لنظام iOS
           MVK_A=$(find /Users/runner/GeneralsX/MoltenVK -name "libMoltenVK.a" | grep "ios-arm64" | grep -v "simulator" | head -n 1)
           if [ -z "$MVK_A" ]; then
             MVK_A=$(find /Users/runner/GeneralsX/MoltenVK -name "libMoltenVK.a" | head -n 1)
@@ -54,13 +51,16 @@ jobs:
             cp -f "$MVK_DYLIB" "$VULKAN_SDK/lib/libvulkan.dylib"
           fi
 
-          # 3. تمرير مسارات الترويسة والمكتبات لمترجم iOS مباشرة
-          export CPATH="$VULKAN_SDK/include:/opt/homebrew/include"
-          export C_INCLUDE_PATH="$VULKAN_SDK/include:/opt/homebrew/include"
-          export CPLUS_INCLUDE_PATH="$VULKAN_SDK/include:/opt/homebrew/include"
-          export LIBRARY_PATH="$VULKAN_SDK/lib"
-
+          # 3. تشغيل إعداد CMake الأولي
           cmake --preset ios-vulkan
+
+          # 4. حقن مسارات Vulkan و SPIR-V مباشرة داخل ملف cross-file الخاص بـ Meson
+          CROSS_FILE="build/ios-vulkan/meson-arm64-ios-cross.ini"
+          if [ -f "$CROSS_FILE" ]; then
+            sed -i '' "s|'-arch', 'arm64'|'-arch', 'arm64', '-I$VULKAN_SDK/include', '-I/opt/homebrew/include'|g" "$CROSS_FILE"
+          fi
+
+          # 5. بناء اللعبة بالكامل
           cmake --build build/ios-vulkan --target z_generals
 
       - name: Package IPA
