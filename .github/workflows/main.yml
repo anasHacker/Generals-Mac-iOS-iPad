@@ -1,0 +1,33 @@
+name: Build iOS IPA
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Dependencies
+        run: brew install cmake xcodegen
+
+      - name: Build Project
+        run: |
+          git submodule update --init references/fbraz3-dxvk
+          ./scripts/build/ios/fetch-moltenvk.sh
+          ./scripts/build/ios/stage-fonts.sh
+          cmake --preset ios-vulkan
+          cmake --build build/ios-vulkan --target z_generals
+
+      - name: Package IPA
+        run: |
+          GX_TEAM_ID="-" GX_BUNDLE_ID=com.github.generalszh ./scripts/build/ios/package-ios-zh.sh
+          mkdir -p Payload
+          find . -name "*.app" -exec cp -r {} Payload/ \;
+          zip -r Generals.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Generals-IPA
+          path: Generals.ipa
