@@ -25,8 +25,9 @@ jobs:
           ./scripts/build/ios/fetch-moltenvk.sh
           ./scripts/build/ios/stage-fonts.sh
           
+          # البحث الشامل عن ملف libMoltenVK.a ونسخه للمسار المطلوب
           mkdir -p /Users/runner/GeneralsX/MoltenVK/MoltenVK/MoltenVK/lib/MoltenVK.xcframework/ios-arm64
-          find /Users/runner/GeneralsX/MoltenVK -name "libMoltenVK.a" -exec cp {} /Users/runner/GeneralsX/MoltenVK/MoltenVK/MoltenVK/lib/MoltenVK.xcframework/ios-arm64/ \;
+          find /Users/runner/GeneralsX -name "libMoltenVK.a" -exec cp {} /Users/runner/GeneralsX/MoltenVK/MoltenVK/MoltenVK/lib/MoltenVK.xcframework/ios-arm64/ \;
           
           cmake --preset ios-vulkan
           cmake --build build/ios-vulkan --target z_generals
