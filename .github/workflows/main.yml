@@ -3,6 +3,8 @@ on: [push, workflow_dispatch]
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  GX_ROOT: ${{ github.workspace }}
+  VULKAN_SDK: ${{ github.workspace }}/MoltenVK/MoltenVK
 
 jobs:
   build:
